@@ -30,6 +30,8 @@ def feature_engineer(data: pd.DataFrame):
     data["rooms_per_household"] = data["total_rooms"] / data["households"]
     return data
 
+st.set_page_config(page_title="California Housing Prices Prediction", page_icon="🏠")
+
 # Sidebar options
 st.sidebar.header("Options")
 option = st.sidebar.selectbox("Choose an option:", ["Home", "Dataset", "Visualizations", "Model Evaluation", "Predict"])
