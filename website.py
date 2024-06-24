@@ -10,11 +10,20 @@ from sklearn.ensemble import RandomForestRegressor
 import skops.io as sio
 import streamlit as st
 
-loaded_model: RandomForestRegressor = sio.load("forest_model.skops")
+st.set_page_config(page_title="California Housing Prices Prediction", page_icon="🏠")
+
+scaler: StandardScaler = sio.load("scaler.skops")
+forest: RandomForestRegressor = sio.load("forest_model.skops")
 cmap = "coolwarm"
 
 df = pd.read_csv("housing.csv")
+df.dropna(inplace=True)
 ocean_proximities = ["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"]
+
+def onehot_encode_regular(data: pd.DataFrame):
+    dummies = ["ocean_proximity"]
+    data = pd.get_dummies(data, prefix=dummies, columns=dummies,dtype=float)
+    return data
 
 def onehot_encode(data: pd.DataFrame):
     data = data.copy()
@@ -30,7 +39,18 @@ def feature_engineer(data: pd.DataFrame):
     data["rooms_per_household"] = data["total_rooms"] / data["households"]
     return data
 
-st.set_page_config(page_title="California Housing Prices Prediction", page_icon="🏠")
+def transform_data(data: pd.DataFrame):
+    data = onehot_encode(data)
+    data = feature_engineer(data)
+    data = scaler.transform(data)
+    return data
+
+df_1 = onehot_encode_regular(df)
+df_2 = feature_engineer(df_1)
+X = df_2.drop(['median_house_value'], axis=1)
+y = df_2['median_house_value']
+X = scaler.transform(X)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1)
 
 # Sidebar options
 st.sidebar.header("Options")
@@ -66,7 +86,22 @@ elif option == "Visualizations":
 
 elif option == "Model Evaluation":
     st.write("## Model Evaluation:")
-    st.write("#### R^2 Score:", 0.83)
+    st.write("#### Score:", forest.score(X_test, y_test))
+    
+    st.write("## Model: Predictions vs Actual")
+    y_pred = forest.predict(X_test)
+    fig, ax = plt.subplots(figsize=(10, 7))
+    # y-axis = median_house_value, x-axis = index
+    ax.plot(y_test.values, label="Actual")
+    ax.plot(y_pred, label="Predicted")
+    ax.set(xlabel="Index", ylabel="Median House Value")
+    ax.legend()
+    st.pyplot(fig)
+    
+    fig, ax = plt.subplots(figsize=(10, 7))
+    sns.scatterplot(x=y_test, y=y_pred, ax=ax)
+    ax.set(xlabel="Actual", ylabel="Predicted")
+    st.pyplot(fig)
 
 elif option == "Predict":
     st.write("## Predict yourself:")
@@ -93,10 +128,8 @@ elif option == "Predict":
     }
 
     data = pd.DataFrame(data)
-
-    data = onehot_encode(data)
-    data = feature_engineer(data)
+    data = transform_data(data)
 
     st.write("### Predicted Price:")
-    prediction = loaded_model.predict(data)
+    prediction = forest.predict(data)
     st.write(prediction[0])
